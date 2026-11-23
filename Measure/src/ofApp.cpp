@@ -82,18 +82,32 @@ ofPolyline ofApp::ConvertProjectiveToRealWorld(const ofPolyline& polyline, float
 	return result;
 }
 
-ofVec3f ofApp::sampleDepth(ofShortImage& depth, ofVec2f position, int radius) {
+// averages the depth around a pixel, returns false if none of it has a reading
+bool ofApp::sampleDepth(ofShortImage& depth, ofVec2f position, int radius, ofVec3f& result) {
 	int w = depth.getWidth(), h = depth.getHeight();
 	int x = position.x, y = position.y;
-	ofVec3f result;
+	result = ofVec3f();
+	int count = 0;
 	for(int j = -radius; j <= +radius; j++) {
 		for(int i = -radius; i <= +radius; i++) {
 			int cx = x + i, cy = y + j;
-			result += ConvertProjectiveToRealWorld(x, y, depth.getPixels()[w * cy + cx]);
+			if(cx < 0 || cx >= w || cy < 0 || cy >= h) {
+				continue;
+			}
+			unsigned short z = depth.getPixels()[w * cy + cx];
+			// 0 means no depth reading, averaging it in pulls the point towards the camera
+			if(z == 0) {
+				continue;
+			}
+			result += ConvertProjectiveToRealWorld(cx, cy, z);
+			count++;
 		}
 	}
-	int side = radius * 2 + 1;
-	return result / (side * side);
+	if(count == 0) {
+		return false;
+	}
+	result /= count;
+	return true;
 }
 
 void ofApp::setup() {
@@ -145,6 +159,10 @@ float ofApp::measureSegment(int y, ofShortImage& depth, ofImage& mask,
 	rightEdge.z = farthest;
 	leftPoint.set(ConvertProjectiveToRealWorld(leftEdge));
 	rightPoint.set(ConvertProjectiveToRealWorld(rightEdge));
+	// nothing in the mask on this row, or no depth for it
+	if(!foundLeft || farthest == 0) {
+		return -1;
+	}
 	return leftPoint.distance(rightPoint);
 }
 
@@ -182,6 +200,16 @@ void ofApp::updateMeanShift() {
 	pyrMeanShiftFiltering(colorSideMat, meanShiftSide, spatialRadius, colorRadius, pyramidLevels);
 }
 	
+void ofApp::clearResults() {
+	frontEdges.clear();
+	sideEdges.clear();
+	heights.clear();
+	circumferences.clear();
+	depths.clear();
+	crotch.clear();
+	crotchLength = 0;
+}
+	
 void ofApp::analyze() {
 	buildMask(maskFront, meanShiftFront, depthFront);
 	maskFront.update();
@@ -201,12 +229,24 @@ void ofApp::analyze() {
 			}
 		}
 	}
+	if(centroidCount == 0) {
+		// empty mask, nothing to measure
+		clearResults();
+		return;
+	}
 	centroid /= centroidCount;
 	
-	ofVec3f f1 = sampleDepth(depthFront, floor1, 2);
-	ofVec3f f2 = sampleDepth(depthFront, floor2, 2);
-	ofVec3f f3 = sampleDepth(depthFront, floor3, 2);
-	ofVec3f floorNormal = getNormal(f1, f2, f3);
+	ofVec3f f1, f2, f3;
+	bool floorFound = sampleDepth(depthFront, floor1, 2, f1);
+	floorFound &= sampleDepth(depthFront, floor2, 2, f2);
+	floorFound &= sampleDepth(depthFront, floor3, 2, f3);
+	// the three floor points must be distinct and not in a line
+	ofVec3f floorNormal = (f3 - f2).getCrossed(f1 - f2);
+	if(!floorFound || floorNormal.length() < 1) {
+		clearResults();
+		return;
+	}
+	floorNormal.normalize();
 	
 	vector<string> names;
 	vector<float> samples;
@@ -241,16 +281,29 @@ void ofApp::analyze() {
 		float front = 0;
 		if(torso[i]) {
 			front = measureSegment(y, depthFront, maskFront, 0, 640, leftEdge, rightEdge, leftPoint, rightPoint);
+			if(front < 0) {
+				clearResults();
+				return;
+			}
 			frontEdges.push_back(pair<ofVec2f, ofVec2f>(leftEdge, rightEdge));
 			height += leftPoint.distance(closestPointOnPlane(f1, floorNormal, leftPoint));
 			height += rightPoint.distance(closestPointOnPlane(f1, floorNormal, rightPoint));
 			heightCount += 2;
 		} else {
 			front = measureSegment(y, depthFront, maskFront, 0, centroid.x, leftEdge, rightEdge, leftPoint, rightPoint);
+			if(front < 0) {
+				clearResults();
+				return;
+			}
 			frontEdges.push_back(pair<ofVec2f, ofVec2f>(leftEdge, rightEdge));
 			height += leftPoint.distance(closestPointOnPlane(f1, floorNormal, leftPoint));
 			height += rightPoint.distance(closestPointOnPlane(f1, floorNormal, rightPoint));
-			front += measureSegment(y, depthFront, maskFront, centroid.x, 640, leftEdge, rightEdge, leftPoint, rightPoint);
+			float frontRight = measureSegment(y, depthFront, maskFront, centroid.x, 640, leftEdge, rightEdge, leftPoint, rightPoint);
+			if(frontRight < 0) {
+				clearResults();
+				return;
+			}
+			front += frontRight;
 			frontEdges.push_back(pair<ofVec2f, ofVec2f>(leftEdge, rightEdge));
 			height += leftPoint.distance(closestPointOnPlane(f1, floorNormal, leftPoint));
 			height += rightPoint.distance(closestPointOnPlane(f1, floorNormal, rightPoint));
@@ -264,6 +317,10 @@ void ofApp::analyze() {
 			slope = hipSlope;
 		}
 		float side = measureSegment(y, depthSide, maskSide, 0, 640, leftEdge, rightEdge, leftPoint, rightPoint, slope);
+		if(side < 0) {
+			clearResults();
+			return;
+		}
 		sideEdges.push_back(pair<ofVec2f, ofVec2f>(leftEdge, rightEdge));
 		depths.push_back(leftPoint.z);
 		
@@ -366,8 +423,15 @@ void ofApp::update() {
 		}
 	}
 	analyze();
+	if(exportData && circumferences.empty()) {
+		exportData = false;
+	}
 	if(exportData) {
 		ofFileDialogResult result = ofSystemSaveDialog("New Folder", "Enter output directory.");
+		if(!result.bSuccess) {
+			exportData = false;
+			return;
+		}
 		string dir = result.getPath() + "/";
 		colorFront.saveImage(dir + "color-front.png");
 		colorSide.saveImage(dir + "color-side.png");
@@ -482,8 +546,10 @@ void ofApp::draw() {
 	
 	ofSetColor(magentaPrint);
 	crotch.draw();
-	ofVec2f crotchLabelPosition = (sideEdges[4].first + sideEdges[4].second + sideEdges[5].first + sideEdges[5].second) / 4;
-	MiniFont::drawHighlight("crotch " + ofToString(millimetersToInches(crotchLength)), crotchLabelPosition);
+	if(sideEdges.size() > 5) {
+		ofVec2f crotchLabelPosition = (sideEdges[4].first + sideEdges[4].second + sideEdges[5].first + sideEdges[5].second) / 4;
+		MiniFont::drawHighlight("crotch " + ofToString(millimetersToInches(crotchLength)), crotchLabelPosition);
+	}
 	
 	ofPopMatrix();
 	ofPopMatrix();

@@ -52,8 +52,7 @@ void bodyPointsF() {
   // draft outer hip point so that distance from b7 is half of hip front and the height is sideseam
   b6 = circleIsecLine(d0, d0R, b7, (hipFront/2), true);
   // find butt point along bezier and draft outside butt point
-  b8 = d1.get();
-  b8.x = bezierCrossesZero(b7, cp1, cp2, b9);
+  b8 = bezierPointAtY(b7, cp2, cp1, b9, d1.y);
   b5 = b8.get();
   b5.x -= buttFront/2.;
   // theory: butt width is accounted for in the pattern on a slanted line from the sideseam (@ crotch y) to the crotch curve (@ butt y) 
@@ -119,8 +118,7 @@ void bodyPointsB() {
   b18 = circleIsecLine(d0, d0R, b19, (hipBack/2), true);
   //println(b18.x+"   "+b18.y);
   // find butt point along bezier and draft outside butt point
-  b20 = d1.get();
-  b20.x = bezierCrossesZero(b19, cp4, cp3, b21);
+  b20 = bezierPointAtY(b19, cp4, cp3, b21, d1.y);
   b17 = b20.get();
   b17.x -= buttBack/2.;
   // theory: butt width is accounted for in the pattern on a slanted line from the sideseam (@ crotch y) to the crotch curve (@ butt y) 
@@ -347,7 +345,7 @@ void pantPointsSAB() {
   l21a = parallelLinePoint(p21a, p22, seamAllowance, true, false);
   h22 = parallelLinePoint(p21a, p22, seamAllowance, false, false);
   l22 = parallelLinePoint(p22, p23, seamAllowance, true, false);
-  h23 = parallelLinePoint(p10, p23, seamAllowance, false, false);
+  h23 = parallelLinePoint(p22, p23, seamAllowance, false, false);
   l23 = parallelLinePoint(p23, p24, seamAllowance, true, false);
   h24 = parallelLinePoint(p23, p24, seamAllowance, false, false);
   l13 = p13.get();

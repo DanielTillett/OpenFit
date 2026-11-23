@@ -51,90 +51,28 @@ PVector circleIsecLine(PVector a, PVector b, PVector c, float r, boolean posNeg)
   return new PVector (isec.x, isec.y);
 }
 
-// bug: its totally off, lol
-// bezier is a, cp1, cp2, b, find x value when y = 0, bezier has to start from above zero
-float bezierCrossesZero(PVector a, PVector cp1, PVector cp2, PVector b) {
-  float precision = .01;
-  int i = 0;
-  float t = 0;
-  float xAtZero = 0;
-  float yAlongBezier = -200;
-  while (yAlongBezier < 0) {
-    i += 1;
-    t = i*precision; 
-    yAlongBezier = bezierPoint (a.y, cp1.y, cp2.y, b.y, t);
-    //println(yAlongBezier);
-    if(i > 1000) {
-      println("bezierCrossesZero() is stuck.");
-      break;
+// bezier is a, cp1, cp2, b; find the point where the curve crosses y = targetY
+// assumes y changes monotonically along the curve (true for the crotch curves).
+// if the curve never reaches targetY, returns the nearer end of the curve
+PVector bezierPointAtY(PVector a, PVector cp1, PVector cp2, PVector b, float targetY) {
+  if (targetY < min(a.y, b.y) || targetY > max(a.y, b.y)) {
+    println("bezierPointAtY(): the curve doesn't reach y = " + targetY + ", using its end");
+    return abs(a.y - targetY) < abs(b.y - targetY) ? a.get() : b.get();
+  }
+  float lo = 0, hi = 1;
+  boolean rising = b.y > a.y;
+  for (int i = 0; i < 50; i++) {
+    float t = (lo + hi) / 2.;
+    float y = bezierPoint(a.y, cp1.y, cp2.y, b.y, t);
+    if ((y < targetY) == rising) {
+      lo = t;
+    } else {
+      hi = t;
     }
   }
-  xAtZero = (bezierPoint(a.x, cp1.x, cp2.x, b.x, t));
-  return xAtZero;
+  float t = (lo + hi) / 2.;
+  return new PVector(bezierPoint(a.x, cp1.x, cp2.x, b.x, t), targetY);
 }
-
-// three more unsuccessful attempts to fix the butt! 
-
-/*
-// this is worse
- float bezierCrossesZero(PVector a, PVector cp1, PVector cp2, PVector b) {
- float precision = .01;
- float t = 0;
- float xAtZero = 0;
- float yAlongBezier = 0;
- boolean calculateBezier = false;
- for (int i= 0; i< (1/precision); i++) {
- t = i*precision; 
- yAlongBezier = bezierPoint (a.y, cp1.y, cp2.y, b.y, t);
- //if ((yAlongBezier>= -0.1)&&(yAlongBezier<=0.1)) {
- if (yAlongBezier == 0) {
- calculateBezier = true;
- }
- }
- if (calculateBezier == true) {
- xAtZero = (bezierPoint(a.x, cp1.x, cp2.x, b.x, t));
- }
- calculateBezier = false;
- return xAtZero;
- } */
-
-/* can't see x inside return
-float bezierCrossesZero(PVector a, PVector cp1, PVector cp2, PVector b) {
-  float precision = .01;
-  float t = 0;
-  float x = 0;
-  float y = -100000;
-  boolean calculateBezier = false;
-  for (int i= 0; i< (1/precision); i++) {
-    t = i*precision; 
-    y = bezierPoint (a.y, cp1.y, cp2.y, b.y, t);
-    x = (bezierPoint(a.x, cp1.x, cp2.x, b.x, t));
-  }
-  if ((y >= -0.1)&&(y <=0.1)) {
-    return x;
-  }
-}
-*/
-
-/* thinks float is a pvector wtf, would still need to filter return, !=0
-PVector bezierCrossesZero(PVector a, PVector cp1, PVector cp2, PVector b) {
-  float precision = .01;
-  float t = 0;
-  float x = 0;
-  float y = -100000;
-  boolean calculateBezier = false;
-  float returnValue = 0;
-  for (int i= 0; i< (1/precision); i++) {
-    t = i*precision; 
-    y = bezierPoint (a.y, cp1.y, cp2.y, b.y, t);
-    x = (bezierPoint(a.x, cp1.x, cp2.x, b.x, t));
-  }
-  if ((y >= -0.1)&&(y <=0.1)) {
-    x = returnValue;
-  }
-  return returnValue;
-} 
-*/
 
 PVector intersectAtDistance(PVector a, PVector b, PVector c, PVector d) {
   float maxScale = 10; // line has to be within this normalized distance

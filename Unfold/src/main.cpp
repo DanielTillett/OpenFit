@@ -8,7 +8,7 @@ bool lineIntersection(const ofVec2f& v1, const ofVec2f& v2, const ofVec2f& v3, c
     float d = (v4.y-v3.y)*(v2.x-v1.x)-(v4.x-v3.x)*(v2.y-v1.y);
     float u = (v4.x-v3.x)*(v1.y-v3.y)-(v4.y-v3.y)*(v1.x-v3.x);
     float v = (v2.x-v1.x)*(v1.y-v3.y)-(v2.y-v1.y)*(v1.x-v3.x);
-    if (d < 0) u = -u; v = -v; d = -d;
+    if (d < 0) { u = -u; v = -v; d = -d; }
     return (0<u && u<d) && (0<v && v<d);
 }
 
@@ -24,7 +24,7 @@ bool pointInTriangle(const ofVec2f& P, const ofVec2f& A, const ofVec2f& B, const
     float u = cross(v2,v0);
     float v = cross(v1,v2);
     float d = cross(v1,v0);
-    if (d < 0) u = -u; v = -v; d = -d;
+    if (d < 0) { u = -u; v = -v; d = -d; }
     return u>0 && v>0 && ((u+v) < d);
 }
 

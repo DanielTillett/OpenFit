@@ -14,6 +14,7 @@ public:
 	void setup();
 	void setupGui();
 	void updateMeanShift();
+	void clearResults();
 	void analyze();
 	void update();
 	void draw();
@@ -28,7 +29,7 @@ public:
 	ofVec3f ConvertProjectiveToRealWorld(const ofVec3f& point);
 	ofVec3f ConvertProjectiveToRealWorld(float x, float y, float z);
 	ofPolyline ConvertProjectiveToRealWorld(const ofPolyline& polyline, float z);
-	ofVec3f sampleDepth(ofShortImage& depth, ofVec2f position, int radius = 0);
+	bool sampleDepth(ofShortImage& depth, ofVec2f position, int radius, ofVec3f& result);
 	
 	ofxUICanvas* gui;	
 	ofEasyCam cam;
